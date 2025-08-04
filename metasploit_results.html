@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Metasploit Exploit Results{% endblock %}
+{% block content %}
+    <h1 class="text-center">Metasploit Exploit Results</h1>
+    <div class="card mt-4">
+        <div class="card-body">
+            {% if output %}
+                <h2 class="card-title">Exploit Output</h2>
+                <pre>{{ output }}</pre>
+            {% elif error %}
+                <h2 class="card-title">Error</h2>
+                <div class="alert alert-danger" role="alert">
+                    {{ error }}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    <a href="/" class="btn btn-primary mt-4">Back to Home</a>
+{% endblock %}
+

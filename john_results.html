@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}John the Ripper Results{% endblock %}
+{% block content %}
+    <h1 class="text-center">John the Ripper Results</h1>
+    <div class="card mt-4">
+        <div class="card-body">
+            {% if cracked_passwords %}
+                <h2 class="card-title">Cracked Passwords</h2>
+                <pre>{{ cracked_passwords }}</pre>
+                <a href="{{ url_for('correction', prompt=cracked_passwords, output=analysis) }}" class="btn btn-warning">Report Incorrect</a>
+            {% elif error %}
+                <h2 class="card-title">Error</h2>
+                <div class="alert alert-danger" role="alert">
+                    {{ error }}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    {% if analysis %}
+    <div class="card mt-4">
+        <div class="card-body">
+            <h2 class="card-title">LLM Analysis</h2>
+            <p>{{ analysis }}</p>
+        </div>
+    </div>
+    {% endif %}
+    <a href="/" class="btn btn-primary mt-4">Back to Home</a>
+{% endblock %}
+

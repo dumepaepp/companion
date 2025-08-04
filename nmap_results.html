@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Nmap Scan Results{% endblock %}
+{% block content %}
+    <h1 class="text-center">Nmap Scan Results</h1>
+    <div class="card mt-4">
+        <div class="card-body">
+            <h2 class="card-title">Raw Output</h2>
+            <pre>{{ results }}</pre>
+        </div>
+    </div>
+    <div class="card mt-4">
+        <div class="card-body">
+            <h2 class="card-title">LLM Analysis</h2>
+            <p>{{ summary }}</p>
+            <a href="{{ url_for('correction', prompt=results, output=summary) }}" class="btn btn-warning">Report Incorrect</a>
+        </div>
+    </div>
+    {% if metasploit_suggestion %}
+    <div class="card mt-4">
+        <div class="card-body">
+            <h2 class="card-title">Metasploit Suggestion</h2>
+            <form action="/metasploit" method="post">
+                <div class="form-group">
+                    <label for="exploit">Exploit:</label>
+                    <input type="text" class="form-control" id="exploit" name="exploit" value="{{ metasploit_suggestion.exploit }}">
+                </div>
+                <div class="form-group">
+                    <label for="payload">Payload:</label>
+                    <input type="text" class="form-control" id="payload" name="payload" value="{{ metasploit_suggestion.payload }}">
+                </div>
+                <div class="form-group">
+                    <label for="rhost">RHOST:</label>
+                    <input type="text" class="form-control" id="rhost" name="rhost" value="{{ target }}">
+                </div>
+                <div class="form-group">
+                    <label for="lhost">LHOST:</label>
+                    <input type="text" class="form-control" id="lhost" name="lhost">
+                </div>
+                <div class="form-group">
+                    <label for="lport">LPORT:</label>
+                    <input type="text" class="form-control" id="lport" name="lport" value="4444">
+                </div>
+                <button type="submit" class="btn btn-danger">Run Exploit</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+    <a href="/" class="btn btn-primary mt-4">Back to Home</a>
+{% endblock %}
+

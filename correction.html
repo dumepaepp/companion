@@ -1,0 +1,26 @@
+
+{% extends "base.html" %}
+{% block title %}Submit Correction{% endblock %}
+{% block content %}
+    <h1 class="text-center">Submit Correction</h1>
+    <div class="card mt-4">
+        <div class="card-body">
+            <form method="post">
+                <div class="form-group">
+                    <label for="prompt">Original Prompt</label>
+                    <textarea class="form-control" id="prompt" name="prompt" rows="5" readonly>{{ prompt }}</textarea>
+                </div>
+                <div class="form-group">
+                    <label for="original_output">Original Output</label>
+                    <textarea class="form-control" id="original_output" name="original_output" rows="5" readonly>{{ output }}</textarea>
+                </div>
+                <div class="form-group">
+                    <label for="corrected_output">Corrected Output</label>
+                    <textarea class="form-control" id="corrected_output" name="corrected_output" rows="5" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Submit Correction</button>
+            </form>
+        </div>
+    </div>
+{% endblock %}
+

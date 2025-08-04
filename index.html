@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Pentesting App{% endblock %}
+{% block content %}
+    <div class="jumbotron">
+        <h1 class="display-4">WhiteRabbitNeo Pentesting Assistant</h1>
+        <p class="lead">I am your AI-powered pentesting assistant. I have access to nmap, Metasploit, John the Ripper, and other tools. What would you like to do?</p>
+        <hr class="my-4">
+        <form action="/prompt" method="post">
+            <div class="form-group">
+                <textarea class="form-control" id="prompt" name="prompt" rows="5" placeholder="e.g., 'Scan 10.0.0.1 for open ports', or 'Crack this hash: ...'"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-lg">Submit</button>
+        </form>
+    </div>
+{% endblock %}

@@ -1,0 +1,11 @@
+
+flask
+flask-login
+flask-sqlalchemy
+pymetasploit3
+torch
+torchvision
+torchaudio
+transformers
+werkzeug
+
