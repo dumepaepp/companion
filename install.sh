@@ -1,13 +1,14 @@
 #!/bin/bash
 #
-# Improved Installation Script for the Pentesting Assistant
+# Advanced Installation Script for the Pentesting Assistant
 #
 # Features:
-# - Pre-flight check and confirmation
+# - Pre-flight check and user confirmation
 # - Unattended mode (-y flag)
 # - Robust root/sudo handling
-# - Comprehensive logging to a file
-# - OS detection for major Linux families
+# - NVIDIA GPU and CUDA check for GGUF offloading
+# - Interactive .env file generation for secrets
+# - Comprehensive logging and dependency verification
 #
 
 # --- Setup and Initialization ---
@@ -21,6 +22,7 @@ NC='\033[0m' # No Color
 
 LOG_FILE="pentest-app-install.log"
 VENV_DIR="venv"
+ENV_FILE=".env"
 
 # --- Logging Functions ---
 # Redirect all stdout/stderr to a log file and the console
@@ -39,14 +41,19 @@ log_error() {
     exit 1
 }
 
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
 # --- Pre-flight Checks ---
 log_info "Starting the installation script for the Pentesting Assistant."
 echo "-----------------------------------------------------------------"
 log_info "This script will perform the following actions:"
 echo "  1. Detect your OS and install system dependencies (nmap, john, metasploit)."
-echo "  2. Create a Python virtual environment in './${VENV_DIR}'."
-echo "  3. Install required Python packages from requirements.txt."
-echo "  4. Use 'sudo' for system-wide installations, so you may be prompted for your password."
+echo "  2. Check for an NVIDIA GPU and CUDA for model layer offloading."
+echo "  3. Create a Python virtual environment in './${VENV_DIR}'."
+echo "  4. Install required Python packages from requirements.txt."
+echo "  5. Help you create a '.env' file for your secret keys."
 echo "-----------------------------------------------------------------"
 
 # Unattended mode check
@@ -61,8 +68,8 @@ fi
 # --- 1. Sudo and Root Handling ---
 SUDO_CMD=""
 if [ "$(id -u)" -ne 0 ]; then
-    log_info "Script is not run as root. Using 'sudo'."
-    if ! command -v sudo >/dev/null 2>&1; then
+    log_info "Script is not run as root. Using 'sudo' for system-wide changes."
+    if ! command_exists sudo; then
         log_error "'sudo' command not found. Please run this script as root or install sudo."
     fi
     SUDO_CMD="sudo"
@@ -70,12 +77,17 @@ else
     log_info "Script is run as root. 'sudo' is not required."
 fi
 
-# --- 2. System Dependency Check & Installation ---
-log_info "Checking for and installing system dependencies..."
+# --- 2. GPU/CUDA Check for GGUF Offloading ---
+log_info "Checking for GPU and CUDA for GGUF offloading..."
+if command_exists nvidia-smi && nvidia-smi > /dev/null; then
+    log_info "NVIDIA GPU detected. GPU offloading should be possible."
+    log_info "Make sure your CUDA drivers are correctly installed for ctransformers to use them."
+else
+    log_warn "No NVIDIA GPU detected. The application will run in CPU-only mode."
+fi
 
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
+# --- 3. System Dependency Installation ---
+log_info "Installing system dependencies..."
 
 # Detect package manager
 if command_exists apt-get; then
@@ -88,65 +100,71 @@ elif command_exists pacman; then
     UPDATE_CMD="$SUDO_CMD pacman -Syu"
     INSTALL_CMD="$SUDO_CMD pacman -S --noconfirm"
 else
-    log_error "Could not detect a supported package manager (apt, yum, pacman). Please install dependencies manually."
+    log_error "Could not detect a supported package manager (apt, yum, pacman)."
 fi
 
-# List of required packages
+# Install core tools
 PACKAGES="python3 python3-pip python3-venv nmap john"
-
-# Install dependencies
-log_info "Updating package lists..."
+log_info "Updating package lists and installing: $PACKAGES"
 $UPDATE_CMD
-
-log_info "Installing packages: $PACKAGES"
 $INSTALL_CMD $PACKAGES
 
-# Special installation for Metasploit Framework
+# Verify installation
+for pkg in $PACKAGES; do
+    if ! command_exists $(echo $pkg | sed 's/python3-pip/pip3/' | sed 's/python3-venv/python3/'); then
+         log_warn "Verification failed for $pkg. Please install it manually."
+    fi
+done
+
+# Install Metasploit
 if ! command_exists msfconsole; then
     log_info "Installing Metasploit Framework... This might take a while."
     curl https://raw.githubusercontent.com/rapid7/metasploit-omnibus/master/config/templates/metasploit-framework-wrappers/msfupdate.erb > msfinstall && \
     chmod 755 msfinstall && \
     $SUDO_CMD ./msfinstall
-    if [ $? -ne 0 ]; then
-        log_error "Metasploit installation failed. Please install it manually from the Rapid7 website."
-    fi
-    log_info "Cleaning up Metasploit installer..."
     rm msfinstall
+    if ! command_exists msfconsole; then
+        log_error "Metasploit installation failed. Please install it manually."
+    fi
 else
     log_info "Metasploit Framework is already installed."
 fi
 
-
-# --- 3. Python Virtual Environment Setup ---
+# --- 4. Python Environment Setup ---
 if [ ! -d "$VENV_DIR" ]; then
     log_info "Creating Python virtual environment in './${VENV_DIR}'..."
     python3 -m venv $VENV_DIR
-    if [ $? -ne 0 ]; then
-        log_error "Failed to create Python virtual environment."
-    fi
 else
     log_info "Virtual environment already exists."
 fi
 
-# --- 4. Activate Virtual Environment & Install Python Packages ---
 log_info "Activating virtual environment and installing Python packages..."
 source ${VENV_DIR}/bin/activate
-
 pip install --upgrade pip
-if [ $? -ne 0 ]; then
-    log_warn "Failed to upgrade pip. Continuing with existing version."
-fi
-
 pip install -r requirements.txt
-if [ $? -ne 0 ]; then
-    deactivate
-    log_error "Failed to install Python packages. Check requirements.txt and your internet connection."
+deactivate
+log_info "Python packages installed successfully."
+
+# --- 5. Environment Configuration ---
+log_info "Configuring environment..."
+if [ -f "$ENV_FILE" ]; then
+    log_info ".env file already exists. Skipping creation."
+else
+    log_info "Creating .env file for environment variables."
+    read -p "Enter your desired SECRET_KEY (leave blank for a random key): " secret_key
+    if [ -z "$secret_key" ]; then
+        secret_key=$(python3 -c 'import secrets; print(secrets.token_hex(24))')
+        log_info "Generated a random SECRET_KEY."
+    fi
+    echo "SECRET_KEY='$secret_key'" > $ENV_FILE
+
+    read -p "Enter your MSF_RPC_PASSWORD: " msf_password
+    echo "MSF_RPC_PASSWORD='$msf_password'" >> $ENV_FILE
+    log_info "Saved configuration to $ENV_FILE"
 fi
 
-log_info "Python packages installed successfully."
-deactivate # Deactivate after installation
 
-# --- 5. Final Instructions ---
+# --- 6. Final Instructions ---
 echo
 echo -e "${GREEN}=====================================================${NC}"
 echo -e "${GREEN}      Installation Complete! 🎉                     ${NC}"
@@ -154,19 +172,16 @@ echo -e "${GREEN}=====================================================${NC}"
 echo
 echo -e "${YELLOW}Before you run the application, you MUST:${NC}"
 echo
-echo -e "  1. Activate the virtual environment:"
+echo -e "  1. Start the Metasploit RPC server in a separate terminal."
+echo -e "     (Use the password you just set in the .env file)"
+echo -e "     ${GREEN}msfrpcd -P your-metasploit-rpc-password -S${NC}"
+echo
+echo -e "  2. Activate the virtual environment and load your .env file:"
 echo -e "     ${GREEN}source ${VENV_DIR}/bin/activate${NC}"
+echo -e "     ${GREEN}set -a; source .env; set +a${NC}"
 echo
-echo -e "  2. Set the required environment variables:"
-echo -e "     ${GREEN}export SECRET_KEY='a-very-strong-and-random-secret-key'${NC}"
-echo -e "     ${GREEN}export MSF_RPC_PASSWORD='your-metasploit-rpc-password'${NC}"
-echo
-echo -e "  3. Start the Metasploit RPC server in a separate terminal:"
-echo -e "     ${GREEN}msfrpcd -P your-metasploit-rpc-password -S${NC}  (Note: -S disables SSL)"
-echo
-echo -e "  4. Run the application:"
+echo -e "  3. Run the application:"
 echo -e "     ${GREEN}python3 main.py${NC}"
 echo
 echo -e "A full log of this installation has been saved to: ${GREEN}${LOG_FILE}${NC}"
 echo
-
