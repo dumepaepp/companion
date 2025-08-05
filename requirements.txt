@@ -8,4 +8,6 @@ torchvision
 torchaudio
 transformers
 werkzeug
-
+accelerate
+sentencepiece
+Metasploit RPC Client
