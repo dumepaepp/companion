@@ -4,12 +4,7 @@ import json
 import os
 import re
 import tempfile
-import threading
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, TrainingArguments, pipeline
-from peft import LoraConfig
-from trl import SFTTrainer
-from datasets import Dataset
-import torch
+from transformers import pipeline
 from pymetasploit3.msfrpc import MsfRpcClient
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -19,7 +14,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 SECRET_KEY = os.environ.get('SECRET_KEY', 'please-change-me-in-production')
 MSF_RPC_PASSWORD = os.environ.get('MSF_RPC_PASSWORD', 'your_password') # Change this or set ENV var
 DATABASE_URI = 'sqlite:///db.sqlite'
-MODEL_ID = "TheBloke/WhiteRabbitNeo-13B-v1-GPTQ" # Or your fine-tuned model path
+# Updated Model ID for the GGUF model
+MODEL_ID = "TheBloke/dolphin-2.7-mixtral-8x7b-GGUF"
 
 # --- App Initialization ---
 app = Flask(__name__)
@@ -31,13 +27,6 @@ db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
-
-# --- Fine-Tuning Status ---
-finetune_status = {
-    "is_running": False,
-    "progress": "Not started",
-    "error": None
-}
 
 # --- Models ---
 class User(UserMixin, db.Model):
@@ -125,8 +114,9 @@ Provide a brief analysis of the password strength and complexity.
 **Analysis:**
 """
 
-# Initialize the pipeline. For production, consider model loading strategies.
-llm_pipeline = pipeline("text-generation", model=MODEL_ID, revision="gptq-4bit-32g-actorder_True")
+# Initialize the pipeline for the GGUF model.
+# The `ctransformers` library must be installed.
+llm_pipeline = pipeline("text-generation", model=MODEL_ID, model_type="mistral")
 
 def parse_llm_json(llm_output):
     """More robustly parses JSON from the LLM's output."""
@@ -197,73 +187,6 @@ def john_the_ripper(hash_string, john_format=None, wordlist=None):
         return {"error": "John the Ripper or the specified wordlist was not found."}
     except Exception as e:
         return {"error": str(e)}
-
-# --- Fine-Tuning Function ---
-def run_finetuning_task():
-    global finetune_status
-    try:
-        with app.app_context():
-            corrections = Correction.query.all()
-            if not corrections:
-                raise ValueError("No corrections available to fine-tune.")
-
-            # 1. Prepare Dataset
-            data = [{"text": f"<s>[INST] {c.prompt} [/INST] {c.corrected_output} </s>"} for c in corrections]
-            dataset = Dataset.from_list(data)
-
-            # 2. Load Model and Tokenizer with Quantization
-            quantization_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=torch.float16)
-            tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
-            model = AutoModelForCausalLM.from_pretrained(MODEL_ID, quantization_config=quantization_config, device_map="auto")
-            
-            tokenizer.pad_token = tokenizer.eos_token
-
-            # 3. Configure PEFT (LoRA)
-            lora_config = LoraConfig(
-                r=8,
-                target_modules=["q_proj", "o_proj", "k_proj", "v_proj", "gate_proj", "up_proj", "down_proj"],
-                bias="none",
-                task_type="CAUSAL_LM",
-            )
-            model.add_adapter(lora_config)
-
-            # 4. Set up Trainer
-            output_dir = "results"
-            training_args = TrainingArguments(
-                output_dir=output_dir,
-                per_device_train_batch_size=4,
-                gradient_accumulation_steps=4,
-                learning_rate=2e-4,
-                logging_steps=10,
-                num_train_epochs=3,
-                max_steps=-1, # Overridden by num_train_epochs
-            )
-
-            trainer = SFTTrainer(
-                model=model,
-                train_dataset=dataset,
-                args=training_args,
-                peft_config=lora_config,
-                dataset_text_field="text",
-                max_seq_length=1024,
-            )
-
-            # 5. Run Training
-            finetune_status['progress'] = "Training started..."
-            trainer.train()
-            
-            # 6. Save Model
-            final_checkpoint = os.path.join(output_dir, "final-checkpoint")
-            trainer.save_model(final_checkpoint)
-            
-            finetune_status['progress'] = f"Fine-tuning complete! Model saved to {final_checkpoint}"
-
-    except Exception as e:
-        finetune_status['error'] = str(e)
-        finetune_status['progress'] = "Failed"
-    finally:
-        finetune_status['is_running'] = False
-
 
 # --- Routes ---
 @app.route('/')
@@ -402,27 +325,12 @@ def correction(output_id):
     else: 
         return render_template('correction.html', prompt=tool_output.raw_output, output=tool_output.llm_analysis, output_id=output_id)
 
-@app.route('/finetune', methods=['POST'])
+@app.route('/finetune', methods=['GET', 'POST'])
 @login_required
 def finetune():
-    global finetune_status
-    if finetune_status['is_running']:
-        flash("A fine-tuning process is already running.", "warning")
-        return redirect(url_for('index'))
-
-    finetune_status = {"is_running": True, "progress": "Initializing...", "error": None}
-    
-    thread = threading.Thread(target=run_finetuning_task)
-    thread.daemon = True
-    thread.start()
-
-    flash("Fine-tuning process has been started in the background.", "success")
+    flash("Fine-tuning is not supported for GGUF models in this application.", "info")
     return redirect(url_for('index'))
 
-@app.route('/finetune_status')
-@login_required
-def finetune_status_route():
-    return jsonify(finetune_status)
 
 if __name__ == '__main__':
     with app.app_context():
