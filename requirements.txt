@@ -1,12 +1,14 @@
+Flask
+Flask-SQLAlchemy
+Flask-Login
+Werkzeug
 
-flask
-flask-login
-flask-sqlalchemy
-pymetasploit3
-torch
-torchvision
-torchaudio
+
 transformers
-werkzeug
+torch
 accelerate
 sentencepiece
+
+ctransformers 
+
+pymetasploit3
