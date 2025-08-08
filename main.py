@@ -4,7 +4,9 @@ import json
 import os
 import re
 import tempfile
-from transformers import pipeline
+from transformers import pipeline, AutoTokenizer
+# Correctly import AutoModelForCausalLM from the ctransformers library
+from ctransformers import AutoModelForCausalLM
 from pymetasploit3.msfrpc import MsfRpcClient
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -16,6 +18,9 @@ MSF_RPC_PASSWORD = os.environ.get('MSF_RPC_PASSWORD', 'your_password') # Change 
 DATABASE_URI = 'sqlite:///db.sqlite'
 # Updated Model ID for the GGUF model
 MODEL_ID = "TheBloke/dolphin-2.7-mixtral-8x7b-GGUF"
+# We must specify the exact GGUF file to use from the repository.
+MODEL_FILE = "dolphin-2.7-mixtral-8x7b.Q4_K_M.gguf"
+
 
 # --- App Initialization ---
 app = Flask(__name__)
@@ -115,8 +120,11 @@ Provide a brief analysis of the password strength and complexity.
 """
 
 # Initialize the pipeline for the GGUF model.
-# The `ctransformers` library must be installed.
-llm_pipeline = pipeline("text-generation", model=MODEL_ID, model_type="mistral")
+# We load the model and tokenizer manually to ensure the correct GGUF file is used.
+model = AutoModelForCausalLM.from_pretrained(MODEL_ID, model_file=MODEL_FILE, model_type="mistral")
+tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
+llm_pipeline = pipeline("text-generation", model=model, tokenizer=tokenizer)
+
 
 def parse_llm_json(llm_output):
     """More robustly parses JSON from the LLM's output."""
