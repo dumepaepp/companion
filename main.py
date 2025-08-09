@@ -24,7 +24,8 @@ RESOURCE_LEVEL = os.environ.get('RESOURCE_LEVEL', 'high').lower()
 if RESOURCE_LEVEL == 'low':
     MODEL_ID = "TheBloke/stablelm-zephyr-3b-GGUF"
     MODEL_FILE = "stablelm-zephyr-3b.Q4_K_M.gguf"
-    MODEL_TYPE = "stablelm"
+    # CRITICAL FIX: The model type for Zephyr models is 'stablelm-zephyr'.
+    MODEL_TYPE = "stablelm-zephyr"
     print("Loading LOW resource model: StableLM Zephyr 3B")
 else:
     MODEL_ID = "TheBloke/dolphin-2.7-mixtral-8x7b-GGUF"
