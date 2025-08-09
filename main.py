@@ -16,10 +16,21 @@ from werkzeug.security import generate_password_hash, check_password_hash
 SECRET_KEY = os.environ.get('SECRET_KEY', 'please-change-me-in-production')
 MSF_RPC_PASSWORD = os.environ.get('MSF_RPC_PASSWORD', 'your_password') # Change this or set ENV var
 DATABASE_URI = 'sqlite:///db.sqlite'
-# Updated Model ID for the GGUF model
-MODEL_ID = "TheBloke/dolphin-2.7-mixtral-8x7b-GGUF"
-# We must specify the exact GGUF file to use from the repository.
-MODEL_FILE = "dolphin-2.7-mixtral-8x7b.Q4_K_M.gguf"
+
+# --- Model Selection ---
+# Choose model based on an environment variable for resource level ('high' or 'low')
+RESOURCE_LEVEL = os.environ.get('RESOURCE_LEVEL', 'high').lower()
+
+if RESOURCE_LEVEL == 'low':
+    MODEL_ID = "TheBloke/stablelm-zephyr-3b-GGUF"
+    MODEL_FILE = "stablelm-zephyr-3b.Q4_K_M.gguf"
+    MODEL_TYPE = "stablelm"
+    print("Loading LOW resource model: StableLM Zephyr 3B")
+else:
+    MODEL_ID = "TheBloke/dolphin-2.7-mixtral-8x7b-GGUF"
+    MODEL_FILE = "dolphin-2.7-mixtral-8x7b.Q4_K_M.gguf"
+    MODEL_TYPE = "mixtral"
+    print("Loading HIGH resource model: Dolphin Mixtral 8x7B")
 
 
 # --- App Initialization ---
@@ -120,8 +131,7 @@ Provide a brief analysis of the password strength and complexity.
 """
 
 # Initialize the pipeline for the GGUF model.
-# The model_type must be 'mixtral' for this model.
-model = AutoModelForCausalLM.from_pretrained(MODEL_ID, model_file=MODEL_FILE, model_type="mixtral")
+model = AutoModelForCausalLM.from_pretrained(MODEL_ID, model_file=MODEL_FILE, model_type=MODEL_TYPE)
 tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
 llm_pipeline = pipeline("text-generation", model=model, tokenizer=tokenizer)
 
