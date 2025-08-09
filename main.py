@@ -120,7 +120,6 @@ Provide a brief analysis of the password strength and complexity.
 """
 
 # Initialize the pipeline for the GGUF model.
-# We load the model and tokenizer manually to ensure the correct GGUF file is used.
 # The model_type must be 'mixtral' for this model.
 model = AutoModelForCausalLM.from_pretrained(MODEL_ID, model_file=MODEL_FILE, model_type="mixtral")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
@@ -154,7 +153,8 @@ def nmap_scan(target, scan_type):
 def metasploit_exploit(exploit_name, payload_name, rhost, lhost, lport):
     """Executes a Metasploit exploit."""
     try:
-        client = MsfRpcClient(MSF_RPC_PASSWORD, ssl=True)
+        # CRITICAL FIX: Set ssl=False to match the recommended msfrpcd startup command.
+        client = MsfRpcClient(MSF_RPC_PASSWORD, ssl=False)
         exploit = client.modules.use('exploit', exploit_name)
         exploit['RHOSTS'] = rhost
         exploit['LHOST'] = lhost
@@ -171,12 +171,17 @@ def metasploit_exploit(exploit_name, payload_name, rhost, lhost, lport):
                 return {"output": shell.read()}
         return {"error": "Exploit executed, but no session was created."}
     except Exception as e:
-        return {"error": f"Metasploit error: {str(e)}"}
+        return {"error": f"Metasploit connection error: {str(e)}. Is msfrpcd running?"}
 
 def john_the_ripper(hash_string, john_format=None, wordlist=None):
     """Cracks a hash using John the Ripper."""
     if not wordlist:
         wordlist = '/usr/share/wordlists/rockyou.txt'
+    
+    # FIX: Check if the default wordlist exists.
+    if not os.path.exists(wordlist):
+        return {"error": f"Wordlist not found at {wordlist}. Please install it or specify a different one."}
+
     try:
         with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".txt") as tmp_file:
             tmp_file.write(hash_string)
@@ -193,7 +198,7 @@ def john_the_ripper(hash_string, john_format=None, wordlist=None):
     except subprocess.CalledProcessError as e:
         return {"error": f"John the Ripper failed: {e.stderr}"}
     except FileNotFoundError:
-        return {"error": "John the Ripper or the specified wordlist was not found."}
+        return {"error": "John the Ripper command not found. Is it installed and in your PATH?"}
     except Exception as e:
         return {"error": str(e)}
 
@@ -211,9 +216,12 @@ def prompt():
         flash("Please enter a prompt.", "warning")
         return redirect(url_for('index'))
 
-    llm_prompt = PROMPT_TOOL_SELECTION.format(user_prompt=user_prompt)
-    llm_output_raw = llm_pipeline(llm_prompt, max_length=1024, num_return_sequences=1, temperature=0.1)[0]['generated_text']
-    llm_data = parse_llm_json(llm_output_raw)
+    try:
+        llm_prompt = PROMPT_TOOL_SELECTION.format(user_prompt=user_prompt)
+        llm_output_raw = llm_pipeline(llm_prompt, max_length=1024, num_return_sequences=1, temperature=0.1)[0]['generated_text']
+        llm_data = parse_llm_json(llm_output_raw)
+    except Exception as e:
+        return render_template('error.html', error=f"LLM execution failed: {str(e)}")
 
     if not llm_data:
         return render_template('error.html', error="Could not understand the request. The LLM returned an invalid format.")
@@ -226,10 +234,13 @@ def prompt():
         if 'error' in result:
             return render_template('error.html', error=result['error'])
         
-        analysis_prompt = PROMPT_NMAP_ANALYSIS.format(nmap_output=result['output'])
-        analysis_raw = llm_pipeline(analysis_prompt, max_length=1024, num_return_sequences=1, temperature=0.2)[0]['generated_text']
-        analysis_data = parse_llm_json(analysis_raw) or {}
-        
+        try:
+            analysis_prompt = PROMPT_NMAP_ANALYSIS.format(nmap_output=result['output'])
+            analysis_raw = llm_pipeline(analysis_prompt, max_length=1024, num_return_sequences=1, temperature=0.2)[0]['generated_text']
+            analysis_data = parse_llm_json(analysis_raw) or {}
+        except Exception as e:
+            analysis_data = {"summary": f"LLM analysis failed: {str(e)}", "metasploit_suggestion": {}}
+
         summary = analysis_data.get('summary', "Could not generate summary.")
         metasploit_suggestion = analysis_data.get('metasploit_suggestion', {})
 
@@ -249,8 +260,11 @@ def prompt():
         if 'error' in result:
             return render_template('error.html', error=result['error'])
         
-        analysis_prompt = PROMPT_JOHN_ANALYSIS.format(john_output=result['output'])
-        analysis = llm_pipeline(analysis_prompt, max_length=512, num_return_sequences=1, temperature=0.2)[0]['generated_text']
+        try:
+            analysis_prompt = PROMPT_JOHN_ANALYSIS.format(john_output=result['output'])
+            analysis = llm_pipeline(analysis_prompt, max_length=512, num_return_sequences=1, temperature=0.2)[0]['generated_text']
+        except Exception as e:
+            analysis = f"LLM analysis failed: {str(e)}"
 
         new_output = ToolOutput(
             tool_name='john',
