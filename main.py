@@ -121,7 +121,8 @@ Provide a brief analysis of the password strength and complexity.
 
 # Initialize the pipeline for the GGUF model.
 # We load the model and tokenizer manually to ensure the correct GGUF file is used.
-model = AutoModelForCausalLM.from_pretrained(MODEL_ID, model_file=MODEL_FILE, model_type="mistral")
+# The model_type must be 'mixtral' for this model.
+model = AutoModelForCausalLM.from_pretrained(MODEL_ID, model_file=MODEL_FILE, model_type="mixtral")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
 llm_pipeline = pipeline("text-generation", model=model, tokenizer=tokenizer)
 
